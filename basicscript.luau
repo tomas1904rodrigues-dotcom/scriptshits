@@ -1,41 +1,31 @@
--- ================================================
---   Mine for Anime Fruits - Simple Tools
---   UI: Rayfield Library
---   Funções: Noclip + WalkSpeed + Teleport Tools
--- ================================================
-
 repeat task.wait() until game:IsLoaded()
 
--- ▸ Serviços
 local Players    = game:GetService("Players")
 local RunService = game:GetService("RunService")
-
--- ▸ Referências ao jogador
 local LocalPlayer = Players.LocalPlayer
-
--- ================================================
--- VARIÁVEIS DE ESTADO
--- ================================================
 
 local noclipEnabled    = false
 local noclipConnection = nil
 local currentSpeed     = 16
-local savedCFrame      = nil   -- guarda a posição/CFrame salva
+local savedCFrame      = nil
+local autoMoneyEnabled = false
+local moneyCount       = 0
+local moneyInterval    = 1.0
 
 -- ================================================
--- CARREGAR RAYFIELD
+-- PLACEHOLDERS (ajusta com Remote Spy)
+-- MONEY_FOLDER: nome da pasta no workspace com as moedas
+-- MONEY_REMOTE: caminho do RemoteEvent de recolha
 -- ================================================
+local MONEY_FOLDER = "DroppedMoney"
+local MONEY_REMOTE = {"ReplicatedStorage", "Remotes", "CollectMoney"}
 
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
-
--- ================================================
--- CRIAR JANELA PRINCIPAL
--- ================================================
 
 local Window = Rayfield:CreateWindow({
     Name            = "Mine for Anime Fruits - Simple Tools",
     LoadingTitle    = "A carregar...",
-    LoadingSubtitle = "Simple Tools v1.1",
+    LoadingSubtitle = "Simple Tools v1.2",
     ConfigurationSaving = { Enabled = false },
     Discord         = { Enabled = false },
     KeySystem       = false,
@@ -44,7 +34,7 @@ local Window = Rayfield:CreateWindow({
 local Tab = Window:CreateTab("Main", nil)
 
 -- ================================================
--- SECÇÃO 1: NOCLIP
+-- NOCLIP
 -- ================================================
 
 Tab:CreateSection("Noclip")
@@ -78,7 +68,6 @@ local function setNoclip(state)
     end
 end
 
--- Repõe o noclip após respawn
 LocalPlayer.CharacterAdded:Connect(function()
     if noclipEnabled then
         task.wait(0.5)
@@ -95,15 +84,14 @@ Tab:CreateToggle({
         setNoclip(state)
         Rayfield:Notify({
             Title    = "Noclip",
-            Content  = state and "Activado! Atravessa tudo." or "Desactivado.",
+            Content  = state and "Activado!" or "Desactivado.",
             Duration = 2.5,
-            Image    = nil,
         })
     end,
 })
 
 -- ================================================
--- SECÇÃO 2: WALKSPEED
+-- WALKSPEED
 -- ================================================
 
 Tab:CreateSection("WalkSpeed")
@@ -116,7 +104,6 @@ local function applySpeed(speed)
     end
 end
 
--- Repõe o WalkSpeed após respawn
 LocalPlayer.CharacterAdded:Connect(function(character)
     local humanoid = character:WaitForChild("Humanoid", 10)
     if humanoid then
@@ -139,36 +126,18 @@ Tab:CreateSlider({
 })
 
 -- ================================================
--- SECÇÃO 3: TELEPORT TOOLS
+-- TELEPORT TOOLS
 -- ================================================
 
 Tab:CreateSection("Teleport Tools")
 
---[[
-    SAVE POSITION:
-    Guarda o CFrame actual do HumanoidRootPart.
-    O CFrame inclui posição E rotação, por isso
-    o jogador volta exactamente orientado da mesma
-    forma que estava quando guardou.
-
-    A posição guardada persiste mesmo após morte/
-    respawn porque está numa variável local (savedCFrame)
-    que não é apagada pelo CharacterAdded.
-]]
-
--- Label que mostra a posição guardada actual
 local posLabel = Tab:CreateLabel("📍 Nenhuma posição guardada")
 
--- Função auxiliar: formata o Vector3 para texto legível
 local function formatPosition(cf)
     local p = cf.Position
-    return string.format(
-        "📍 Posição: %.1f, %.1f, %.1f",
-        p.X, p.Y, p.Z
-    )
+    return string.format("📍 Posição: %.1f, %.1f, %.1f", p.X, p.Y, p.Z)
 end
 
--- Botão: Guardar posição actual
 Tab:CreateButton({
     Name     = "💾  Save Current Position",
     Callback = function()
@@ -176,47 +145,32 @@ Tab:CreateButton({
         local hrp       = character and character:FindFirstChild("HumanoidRootPart")
 
         if not hrp then
-            Rayfield:Notify({
-                Title    = "Erro",
-                Content  = "Personagem não encontrada. Tenta novamente.",
-                Duration = 3,
-                Image    = nil,
-            })
+            Rayfield:Notify({ Title = "Erro", Content = "Personagem não encontrada.", Duration = 3 })
             return
         end
 
-        -- Guarda o CFrame completo (posição + rotação)
         savedCFrame = hrp.CFrame
-
-        -- Actualiza o label com as coordenadas
         posLabel:Set(formatPosition(savedCFrame))
 
         Rayfield:Notify({
-            Title    = "Posição Guardada!",
-            Content  = string.format(
-                "X: %.1f  Y: %.1f  Z: %.1f",
+            Title   = "Posição Guardada!",
+            Content = string.format("X: %.1f  Y: %.1f  Z: %.1f",
                 savedCFrame.Position.X,
                 savedCFrame.Position.Y,
-                savedCFrame.Position.Z
-            ),
+                savedCFrame.Position.Z),
             Duration = 3,
-            Image    = nil,
         })
     end,
 })
 
--- Botão: Teleportar para posição guardada
 Tab:CreateButton({
     Name     = "🚀  Teleport to Saved Position",
     Callback = function()
-
-        -- Verifica se há posição guardada
         if not savedCFrame then
             Rayfield:Notify({
-                Title    = "Sem Posição Guardada",
-                Content  = "Nenhuma posição guardada ainda! Usa 'Save Current Position' primeiro.",
+                Title   = "Sem Posição Guardada",
+                Content = "Usa 'Save Current Position' primeiro.",
                 Duration = 3.5,
-                Image    = nil,
             })
             return
         end
@@ -225,39 +179,143 @@ Tab:CreateButton({
         local hrp       = character and character:FindFirstChild("HumanoidRootPart")
 
         if not hrp then
-            Rayfield:Notify({
-                Title    = "Erro",
-                Content  = "Personagem não encontrada. Tenta novamente.",
-                Duration = 3,
-                Image    = nil,
-            })
+            Rayfield:Notify({ Title = "Erro", Content = "Personagem não encontrada.", Duration = 3 })
             return
         end
 
-        --[[
-            Teletransporte seguro:
-            Desactiva brevemente o physics anchor para
-            garantir que o CFrame é aplicado correctamente,
-            mesmo com o servidor a resistir ao movimento.
-        ]]
         hrp.CFrame = savedCFrame
 
         Rayfield:Notify({
-            Title    = "Teleportado!",
-            Content  = string.format(
-                "Voltaste para X: %.1f  Y: %.1f  Z: %.1f",
+            Title   = "Teleportado!",
+            Content = string.format("X: %.1f  Y: %.1f  Z: %.1f",
                 savedCFrame.Position.X,
                 savedCFrame.Position.Y,
-                savedCFrame.Position.Z
-            ),
+                savedCFrame.Position.Z),
             Duration = 3,
-            Image    = nil,
         })
     end,
 })
 
 -- ================================================
--- SECÇÃO 4: CONTROLOS
+-- AUTO COLLECT MONEY
+-- ================================================
+
+Tab:CreateSection("Auto Collect Money")
+
+local moneyLabel = Tab:CreateLabel("💰 Auto Money: OFF  |  Recolhido: 0")
+
+local function getMoneyRemote()
+    local obj = game
+    for _, key in ipairs(MONEY_REMOTE) do
+        obj = obj:FindFirstChild(key)
+        if not obj then return nil end
+    end
+    return obj
+end
+
+local function getMoneyFolder()
+    return workspace:FindFirstChild(MONEY_FOLDER)
+end
+
+local function tryCollectMoney(moneyObj)
+    local remote = getMoneyRemote()
+    if remote then
+        pcall(function() remote:FireServer(moneyObj) end)
+        return
+    end
+
+    -- Alternativa: ProximityPrompt (descomenta se necessário)
+    --[[
+    local prompt = moneyObj:FindFirstChildOfClass("ProximityPrompt")
+                or (moneyObj:IsA("Model") and moneyObj:FindFirstChildWhichIsA("ProximityPrompt", true))
+    if prompt then
+        pcall(function() fireproximityprompt(prompt) end)
+        return
+    end
+    ]]
+
+    -- Alternativa: teleporte até à moeda (último recurso)
+    --[[
+    local hrp  = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    local part = moneyObj:IsA("BasePart") and moneyObj
+              or (moneyObj:IsA("Model") and moneyObj:FindFirstChildWhichIsA("BasePart"))
+    if hrp and part then
+        hrp.CFrame = part.CFrame + Vector3.new(0, 3, 0)
+    end
+    ]]
+end
+
+local function startMoneyLoop()
+    task.spawn(function()
+        while autoMoneyEnabled do
+            local character = LocalPlayer.Character
+            local hrp       = character and character:FindFirstChild("HumanoidRootPart")
+            local folder    = getMoneyFolder()
+
+            if hrp and folder then
+                for _, moneyObj in ipairs(folder:GetChildren()) do
+                    if not autoMoneyEnabled then break end
+
+                    local part = moneyObj:IsA("BasePart") and moneyObj
+                              or (moneyObj:IsA("Model") and moneyObj:FindFirstChildWhichIsA("BasePart"))
+
+                    if part then
+                        local dist = (hrp.Position - part.Position).Magnitude
+                        if dist <= 60 then
+                            tryCollectMoney(moneyObj)
+                            moneyCount += 1
+                            moneyLabel:Set("💰 Auto Money: ON  |  Recolhido: " .. moneyCount)
+                            task.wait(0.15 + math.random() * 0.1)
+                        end
+                    end
+                end
+            end
+
+            task.wait(moneyInterval)
+        end
+
+        moneyLabel:Set("💰 Auto Money: OFF  |  Recolhido: " .. moneyCount)
+    end)
+end
+
+Tab:CreateToggle({
+    Name         = "Auto Collect Money",
+    CurrentValue = false,
+    Flag         = "AutoMoneyToggle",
+    Callback     = function(state)
+        autoMoneyEnabled = state
+
+        if state then
+            Rayfield:Notify({
+                Title   = "Auto Collect Money",
+                Content = "Activado! A recolher dinheiro...",
+                Duration = 3,
+            })
+            startMoneyLoop()
+        else
+            Rayfield:Notify({
+                Title   = "Auto Collect Money",
+                Content = "Desactivado.",
+                Duration = 2.5,
+            })
+        end
+    end,
+})
+
+Tab:CreateSlider({
+    Name         = "Intervalo de recolha",
+    Range        = {0.3, 3.0},
+    Increment    = 0.1,
+    Suffix       = "s",
+    CurrentValue = 1.0,
+    Flag         = "MoneyIntervalSlider",
+    Callback     = function(value)
+        moneyInterval = value
+    end,
+})
+
+-- ================================================
+-- CONTROLOS
 -- ================================================
 
 Tab:CreateSection("Controlos")
@@ -265,8 +323,23 @@ Tab:CreateSection("Controlos")
 Tab:CreateButton({
     Name     = "Destroy GUI",
     Callback = function()
-        noclipEnabled = false
+        noclipEnabled    = false
+        autoMoneyEnabled = false
         setNoclip(false)
         Rayfield:Destroy()
     end,
 })
+
+--[[
+    Se o Auto Collect Money não funcionar:
+    
+    1. Usa Remote Spy e recolhe dinheiro manualmente.
+       → Substitui MONEY_REMOTE pelo caminho real.
+    
+    2. No Explorer (Dex), procura a pasta no workspace
+       onde as moedas aparecem.
+       → Substitui MONEY_FOLDER pelo nome real.
+    
+    3. Se usar ProximityPrompt, descomenta a
+       Alternativa 2 dentro de tryCollectMoney().
+]]
